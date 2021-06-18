@@ -1,3 +1,5 @@
+import random
+
 from flask import Flask, request, jsonify
 from sqlite3 import Connection as SQLite3Connection
 from datetime import datetime
@@ -7,6 +9,8 @@ from flask_sqlalchemy import SQLAlchemy
 
 import linked_list
 import hash_table
+import binary_search_tree
+import random
 
 #app
 app = Flask(__name__)
@@ -14,16 +18,19 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///sqlitedb.file"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = 0
 
+
 # configure sqlite3 to enforce foreign key constraints
 @event.listens_for(Engine, "connect")
-def _set_sqlite_pragma(dbapi_connection, connection_record):
+def _set_sqlite_pragma( dbapi_connection, connection_record):
     if isinstance(dbapi_connection, SQLite3Connection):
-        cursor =dbapi_connection.cursor()
+        cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON;")
         cursor.close()
 
+
 db = SQLAlchemy(app)
 now = datetime.now()
+
 
 # models
 class User(db.Model):
@@ -35,6 +42,7 @@ class User(db.Model):
     phone = db.Column(db.String(50))
     posts = db.relationship("BlogPost", cascade="all, delete")
 
+
 class BlogPost(db.Model):
     __tablename__ = "blog_post"
     id = db.Column(db.Integer, primary_key=True)
@@ -43,19 +51,21 @@ class BlogPost(db.Model):
     date = db.Column(db.Date)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
+
 # routes
 @app.route("/user", methods=["POST"])
 def create_user():
     data = request.get_json()
     new_user = User(
-        name = data["name"],
-        email = data["email"],
-        address = data["address"],
-        phone = data["phone"]
+        name=data["name"],
+        email=data["email"],
+        address=data["address"],
+        phone=data["phone"]
     )
     db.session.add(new_user)
     db.session.commit()
     return jsonify({"mesage": "User created"}), 200
+
 
 @app.route("/user/descending", methods=["GET"])
 def get_all_users_descending():
@@ -74,6 +84,7 @@ def get_all_users_descending():
         )
     return jsonify(all_users_ll.to_list()), 200
 
+
 @app.route("/user/ascending", methods=["GET"])
 def get_all_users_ascending():
     users = User.query.all()
@@ -90,6 +101,7 @@ def get_all_users_ascending():
             }
         )
     return jsonify(all_users_ll.to_list()), 200
+
 
 @app.route("/user/<user_id>", methods=["GET"])
 def get_one_user(user_id):
@@ -110,6 +122,7 @@ def get_one_user(user_id):
     user = all_users_ll.get_user_by_id(user_id)
     return jsonify(user), 200
 
+
 @app.route("/user/<user_id>", methods=["DELETE"])
 def delete_user(user_id):
     user = User.query.filter_by(id=user_id).first()
@@ -117,13 +130,14 @@ def delete_user(user_id):
     db.session.commit()
     return jsonify({}), 200
 
+
 @app.route("/blog_post/<user_id>", methods=["POST"])
 def create_blog_post(user_id):
     data = request.get_json()
 
     user = User.query.filter_by(id=user_id).first()
     if not user:
-        return jsonify({"message": "user does not wxist!"}), 400
+        return jsonify({"message": "user does not exist!"}), 400
 
     ht = hash_table.HashTable(10)
 
@@ -142,13 +156,33 @@ def create_blog_post(user_id):
     db.session.commit()
     return jsonify({"message": "new blog post created"}), 200
 
-@app.route("/user/<user_id>", methods=["GET"])
-def get_all_blog_post(user_id):
-    pass
+
+@app.route("/blog_post/<blog_post_id>", methods=["GET"])
+def get_all_blog_post(blog_post_id):
+    blog_posts = BlogPost.query.all()
+    random.shuffle(blog_posts)
+
+    bst = binary_search_tree.BinarySearchTree()
+
+    for post in blog_posts:
+        bst.insert({
+            "id": post.id,
+            "title": post.title,
+            "body": post.body,
+            "user_id": post.user_id,
+        })
+
+    post = bst.search(blog_post_id)
+
+    if not post:
+        return jsonify({"message": "post not found"})
+    return jsonify(post)
+
 
 @app.route("/blog_post/<blog_post_id>", methods=["GET"])
 def get_one_blog_post(blog_post_id):
     pass
+
 
 @app.route("/blog_post/<blog_post_id>", methods=["DELETE"])
 def delete_blog_post(blog_post_id):
