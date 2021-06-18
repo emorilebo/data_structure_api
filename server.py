@@ -10,9 +10,10 @@ from flask_sqlalchemy import SQLAlchemy
 import linked_list
 import hash_table
 import binary_search_tree
+import custom_q
 import random
 
-#app
+# app
 app = Flask(__name__)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///sqlitedb.file"
@@ -21,7 +22,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = 0
 
 # configure sqlite3 to enforce foreign key constraints
 @event.listens_for(Engine, "connect")
-def _set_sqlite_pragma( dbapi_connection, connection_record):
+def _set_sqlite_pragma(dbapi_connection, connection_record):
     if isinstance(dbapi_connection, SQLite3Connection):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON;")
@@ -158,7 +159,7 @@ def create_blog_post(user_id):
 
 
 @app.route("/blog_post/<blog_post_id>", methods=["GET"])
-def get_all_blog_post(blog_post_id):
+def get_one_blog_post(blog_post_id):
     blog_posts = BlogPost.query.all()
     random.shuffle(blog_posts)
 
@@ -179,14 +180,41 @@ def get_all_blog_post(blog_post_id):
     return jsonify(post)
 
 
-@app.route("/blog_post/<blog_post_id>", methods=["GET"])
-def get_one_blog_post(blog_post_id):
-    pass
+@app.route("/blog_post/numeric_body", methods=["GET"])
+def get_numeric_post_bodies():
+    blog_posts = BlogPost.query.all()
+
+    q = custom_q.Queue()
+
+    for post in blog_posts:
+        q.enqueue(post)
+
+    return_list = []
+
+    for _ in range(len(blog_posts)):
+        post = q.dequeue()
+        numeric_body = 0
+        for char in post.data.body:
+            numeric_body += ord(char)
+
+        post.data.body = numeric_body
+
+        return_list.append(
+            {
+                "id": post.data.id,
+                "title": post.data.title,
+                "body": post.data.body,
+                "user_id": post.data.user_id,
+
+            }
+        )
+    return jsonify(return_list)
 
 
 @app.route("/blog_post/<blog_post_id>", methods=["DELETE"])
 def delete_blog_post(blog_post_id):
     pass
+
 
 if __name__ == "__main__":
     app.run(debug=True)
